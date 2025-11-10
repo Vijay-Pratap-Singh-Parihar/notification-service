@@ -14,15 +14,18 @@ export class HandleDriverEventUseCase {
       case 'driver.status.changed':
         await this.handleDriverStatusChanged(data);
         break;
+      case 'driver.updated':
+        await this.handleDriverUpdated(data);
+        break;
       default:
         Logger.debug('Unhandled driver event type', undefined, { eventType });
     }
   }
 
   private async handleDriverRegistered(data: any): Promise<void> {
-    if (data.id) {
+    if (data?.driver_id) {
       await this.sendNotification.execute({
-        recipient: data.id,
+        recipient: data.driver_id,
         channel: 'email',
         subject: 'Welcome to the Platform',
         message: `Welcome ${data.name}! Your driver account has been successfully registered.`,
@@ -31,15 +34,41 @@ export class HandleDriverEventUseCase {
   }
 
   private async handleDriverStatusChanged(data: any): Promise<void> {
-    if (data.id) {
-      const status = data.isActive ? 'active' : 'inactive';
+    if (data?.driver_id) {
+      const status = data.is_active ? 'active' : 'inactive';
       await this.sendNotification.execute({
-        recipient: data.id,
+        recipient: data.driver_id,
         channel: 'push',
         subject: 'Status Changed',
         message: `Your driver status has been changed to ${status}.`,
       });
     }
+  }
+
+  private async handleDriverUpdated(data: any): Promise<void> {
+    if (!data?.driver_id) {
+      return;
+    }
+
+    const changes = data?.changes && typeof data.changes === 'object' ? data.changes : {};
+    const changeEntries = Object.entries(changes).map(([key, value]) => {
+      if (value === undefined || value === null) {
+        return `${key}: null`;
+      }
+      if (typeof value === 'object') {
+        return `${key}: ${JSON.stringify(value)}`;
+      }
+      return `${key}: ${value}`;
+    });
+
+    const changeSummary = changeEntries.length > 0 ? changeEntries.join(', ') : 'profile details';
+
+    await this.sendNotification.execute({
+      recipient: data.driver_id,
+      channel: 'push',
+      subject: 'Profile Updated',
+      message: `Your driver profile was updated. Latest updates: ${changeSummary}.`,
+    });
   }
 }
 
